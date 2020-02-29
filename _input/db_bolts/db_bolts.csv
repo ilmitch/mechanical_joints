@@ -1,0 +1,2 @@
+bolt_type,material,pt_min,pt_nom,pt_max,sigma_yield,sigma_ultimate
+'M6','Ti6V4Al',1000,2000,3000,400,600
