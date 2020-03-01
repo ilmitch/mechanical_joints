@@ -52,6 +52,11 @@ class Analysis():
     level_limit = km * kq * kp * kld    #factor from limit level to design level
     level_qual = kp * kld               #factor from qualidication level to design level
     level_design = 1.0                  #factor from design level to design level, 1.0
+    
+    # mechanical engineering theory handbook 
+    handbook = {'title' : "Space Engineering, Threaded Fasteners Handbook",
+                'release_date' : "16 April 2010",
+                'doc_number' : 'ECSS-E-HB-32-23A'}
 
 class Material():
     '''
@@ -202,7 +207,7 @@ class Joint(Analysis):
 
     def calc_mos_slippage_ult(self):
         '''
-        computes ultimate slippage MoS
+        computes ultimate slippage MoS, see Handbook, page §9.2.3 Friction Grip Strength Analysis, page 137
         '''
         mos_slip = ((self.bolt.pt_min - (1-self.compliance['min']) * self.load.pull) * self.parts_frict['nu_min']) / (self.load.shear * self.sf_ult)
         return mos_slip
