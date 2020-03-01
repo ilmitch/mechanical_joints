@@ -33,6 +33,9 @@ TODO (feel free to help out!)
 [] hardware size
     [] wrench size
 
+[d] method that return object params as a dictionary
+    > use object.__dict__ or vars(object)
+
 [-] implement __repr__ for all classes
 
 '''
@@ -55,9 +58,9 @@ class Analysis():
     sf_ult = 1.25        # ultimate safety factor
     compliance = {'min' : 0.20, 'max' : 0.40}    # clamped parts compliance factor
 
-    level_limit = km * kq * kp * kld    #factor from limit level to design level
-    level_qual = kp * kld               #factor from qualidication level to design level
-    level_design = 1.0                  #factor from design level to design level, 1.0
+    K_level_limit = km * kq * kp * kld    #factor from limit level to design level
+    K_level_qual = kp * kld               #factor from qualidication level to design level
+    K_level_design = 1.0                  #factor from design level to design level, 1.0
     
     # mechanical engineering theory handbook 
     handbook = {'title' : "Space Engineering, Threaded Fasteners Handbook",
@@ -92,7 +95,7 @@ class Friction():
         self.df = df
 
     def nus(self):
-        'returns min, max friction coeff and data reference'
+        'for input material pairs, returns min, max friction coeff and data reference'
         nu_min = self.df.loc[self.material_a, self.material_b]['nu_min']
         nu_max = self.df.loc[self.material_a, self.material_b]['nu_max']
         reference = self.df.loc[self.material_a, self.material_b]['reference']
@@ -102,7 +105,7 @@ class Friction():
 
 class Coord:
     '''
-    defines coordinate system as normalized array
+    defines coordinate system as normalized array [] work in progress
     '''
     def __init__(self,cid, arr):
         self.cid = cid
@@ -110,30 +113,36 @@ class Coord:
 
 
 
-class Load():
+class Load(Analysis):
     '''
-    returns loads wrt. bolt coordinate system
+    returns design bolt loads wrt. bolt coordinate system
     '''
-    # def __init__(self, load_in, coord_in, coord_out, pull_direction):
-    #     self.load_in = load_in
-    #     self.coord_in = coord_in
-    #     self.coord_out = coord_out
-    #     self.pull_direction = pull_direction
 
-    def __init__(self, load_in, pull_direction = 'Z'):
-        self.load_in = load_in  # input load, list
+    def __init__(self, load_in, pull_direction = 'Z', level='limit'):
+                         # input load, list
         self.pull_direction = pull_direction    # bolt pull direction, string, 'X' or 'Y' or 'Z'
-        
-        # expressing input load as bolt pull / shear load
+        self.level = level                      # limit, qualification or design level
+        self.load_in = load_in
+        # bringing input load to design level
+        if self.level == 'limit':
+            self.load_design = [load * self.K_level_limit for load in load_in] 
+        elif self.level == 'qualification':
+            self.load_design = [load * self.K_level_qual for load in load_in]         
+        elif self.level == 'design':
+            self.load_design = load_in   
+        else:
+            raise Exception  
+
+        # expressing input load as bolt pull / shear loads
         if self.pull_direction == 'X':
-            self.pull = load_in[0]
-            self.shear = (load_in[1]**2 + load_in[2]**2)**0.5 
+            self.pull = self.load_design[0]
+            self.shear = (self.load_design[1]**2 + self.load_design[2]**2)**0.5 
         elif self.pull_direction == 'Y':
-            self.pull = load_in[1]
-            self.shear = (load_in[0]**2 + load_in[2]**2)**0.5 
+            self.pull = self.load_design[1]
+            self.shear = (self.load_design[0]**2 + self.load_design[2]**2)**0.5 
         elif self.pull_direction == 'Z':
-            self.pull = load_in[2]
-            self.shear = (load_in[0]**2 + load_in[1]**2)**0.5 
+            self.pull = self.load_design[2]
+            self.shear = (self.load_design[0]**2 + self.load_design[1]**2)**0.5 
         else:
             print('provided pull_direction is wrong!')
             raise Exception
@@ -148,7 +157,7 @@ class Part(Material):
 
 class Bolt(Analysis):
     '''
-    Bolts attributes, derived params and computation of Safety Margins
+    Bolts attributes, derived params; given a target coefficient of use, the seating torque is returned
     '''
     pi = 3.14159265359
 
@@ -156,8 +165,10 @@ class Bolt(Analysis):
 
         self.system = system            #metric or US
         self.material = material        #material object
-        self.thread_size = thread_size
-        self.pitch = pitch
+        self.thread_size = thread_size  #diamter
+        self.pitch = pitch              #thread pitch
+        self.coeff_use = coeff_use      #target coefficient of use
+
         self.h =  (3**(0.5))/2 * pitch  #height of fundamental triangle
 
         #metric system, ext and int diameter in meters
