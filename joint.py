@@ -37,28 +37,43 @@ import pandas as pd
 frict_coeff_path = "_input/db_material/friction.csv"
 frict_df = pd.read_csv(frict_coeff_path, skiprows=4).set_index(['material_A', 'material_B']) 
 
+class Analysis():
+    '''
+    Analysis Params
+    '''
+    def __init__(self, km=1.20, kq=1.25, kp=1.0, sf_yld=1.10, sf_ult=1.25, sf_lcd=1.20):
+        self.km = km            # mathematical model load factor
+        self.kq = kq            # test qualificaiton load factor
+        self.kp = kp            # project or additional load factor
+        self.sf_yld = sf_yld    # yield safety factor
+        self.sf_ult = sf_ult    # ultimate safety factor
+        self.sf_lcd = sf_lcd    # local design safety factor
+
 class Material():
     '''
-    Defines material physical properties
+    Defines physical properties of a material object
     '''
-    def __init__(self, reference, name, E, nu, rho):
+    def __init__(self, reference, name, E, nu, rho, sig_yld, sig_ult):
         self.reference = reference  #reference to material source data
         self.name = name            #Alloy Name, e.g.Ti6Al4V
         self.E = E                  #Young Moduls, Pa
         self.nu = nu                #Poisson Ratio, -
         self.rho = rho              #Density, kg/m^3
+        self.sig_yld = sig_yld
+        self.sig_ult = sig_ult
 
         # G modulus for isotropic materials
         self.G = E / (2*(1+nu))     #Shear Modulus, Pa
 
-class friction_coef():
+class Friction():
     '''
     given materials pair, it returns min and max friction coefficient
+    the frict_df material names has to match with the material object name
     '''
 
     def __init__(self, material_a, material_b, df=frict_df):
-        self.material_a = str(material_a)
-        self.material_b = str(material_b)
+        self.material_a = material_a.name
+        self.material_b = material_b.name
         self.df = df
 
     def nus(self):
@@ -69,9 +84,6 @@ class friction_coef():
         nus = {'nu_min' : nu_min, 'nu_max' : nu_max, 'reference' : reference}
         return nus
 
-
-    # def __repr__():
-    #     return f"Friction coefficient data:\n{frict_df}"
 
 class Coord:
     '''
@@ -87,12 +99,14 @@ class Load():
     '''
     returns loads wrt. bolt coordinate system
     '''
-    def __init__(self, load_in, coord_in, coord_out, pull_direction):
+    # def __init__(self, load_in, coord_in, coord_out, pull_direction):
+    #     self.load_in = load_in
+    #     self.coord_in = coord_in
+    #     self.coord_out = coord_out
+    #     self.pull_direction = pull_direction
+    def __init__(self, load_in, pull_direction = 'Z'):
         self.load_in = load_in
-        self.coord_in = coord_in
-        self.coord_out = coord_out
         self.pull_direction = pull_direction
-
 
 
 class Part(Material):
@@ -101,7 +115,7 @@ class Part(Material):
         self.thickness = thickness
 
 
-class Bolt(Material):
+class Bolt():
     '''
     Bolts attributes, derived params and computation of Safety Margins
     '''
@@ -130,18 +144,36 @@ class Bolt(Material):
         self.area_t = self.pi/4 * (thread_size -0.9382*pitch)**2
         self.area_min = self.pi/4 * (self.d_min_ext)**2
         # bolt name
-        self.bolt_name = f"M{thread_size*1e3}x{pitch*1e3}"
+        self.name = f"M{thread_size*1e3}x{pitch*1e3}"
+
+        #bolt pre-tension [] to be implemented as a function of bolt design and coeff of use
+        self.pt_min = 1000  
+        self.pt_nom = 1500
+        self.pt_max = 2000
 
 
-class Joint(Part, Bolt):
+class Washer():
+    def __init__(self, material):
+        self.material = material
+
+class Nut():
+    def __init__(self, material):
+        self.material = material
+
+    def __repr__(self):
+        return f"Name:\t{self.material.name}\n  E-moduls:\t{self.material.E}[Pa]\n  Poisson Ratio:\t{self.material.nu}[-]\n  Density:\t{self.material.rho}[kg/m^3]"
+
+class Joint(Analysis):
     '''
     computes MoS at joint level
     '''
-    def __init__(self, Type, bolt, washer, nut, clamp_part_male, clamp_part_female):
-        self.bolt = bolt
+    def __init__(self, type, bolt, washer, nut, clamp_part_male, clamp_part_female, load):
+        self.type = type                            # bolt with nut or tapped joint
+        self.bolt = bolt                            # bolt object
         self.clamp_part_male = clamp_part_male      # clamped part with through hole, directly underneath bolt head / bolt washer
         self.clamp_part_female = clamp_part_female  # clamped part with threaded hole or at the bolt nut side
-        self.type = type                            # bolt with nut or tapped joint
+        self.parts_frict = Friction(clamp_part_male.material, clamp_part_female.material).nus()
+
 
         def calc_mos_slippage(self):
             '''
@@ -156,24 +188,33 @@ class Joint(Part, Bolt):
 
 if __name__ == '__main__':
 
-    AA7075 = Material('mat_db', 'AA7075',71e9,0.21,2100.)
-    Ti6Al4V = Material('mat_db', 'Ti-6Al-4V',400e9,0.21,4600.) 
-    nitronic = Material('mat_db','nitronic',201e9,0.21,4000.)
-    inox = Material('mat_db', 'inox', 202e9,0.22, 3800.)
-
+    # materials
+    AA7075 = Material('mat_db', 'AA7075',71e9,0.21,2100.,300e6,400e6)
+    Ti6Al4V = Material('mat_db', 'Ti-6Al-4V',400e9,0.21,4600.,800e6,900e6) 
+    nitronic = Material('mat_db','nitronic',201e9,0.21,4000.,600e6,700e6)
+    inox = Material('mat_db', 'inox', 202e9,0.22, 3800.,500e6,600e6) 
+    # coords
     coord_glob = Coord(1001,np.diag(np.array([1,1,1])))
     coord_local = Coord(1101, np.array([[0,-1,0],[1,0,0],[0,0,-1]]))
 
+    # input data DataFrame
     df = pd.DataFrame([[nitronic,6e-3,1e-3,0.90, coord_glob, coord_glob,inox,AA7075],[Ti6Al4V,5e-3,1e-3,0.80, coord_glob,coord_local,inox,inox]], columns=['material','thread_size', 'pitch', 'coeff_usage', 'c_in', 'c_out','mat_washer', 'mat_thread'])
     df['bolt'] = df.apply(lambda X: Bolt('SI',X[0],X[1],X[2],X[3]), axis=1)
-    df['bolt_name'] = df['bolt'].apply(lambda X: X.bolt_name)
+    df['bolt_name'] = df['bolt'].apply(lambda X: X.name)
     df['bolt_mat_name'] = df['material'].apply(lambda X: X.name)
 
     df['area_tensile'] = df['bolt'].apply(lambda X: X.area_t)
     df['cid_in'] = df['c_in'].apply(lambda X: X.cid)
     df['cid_out'] = df['c_out'].apply(lambda X: X.cid)
     
-    # df['nus'] = df[['bolt','mat_washer',]].apply(lambda X: X.bolt_name)
-
     with pd.option_context('display.max_rows', None, 'display.max_columns', None):  #printing the entire array more options can be specified also
         print(df)
+
+    # general istantiation example
+    bolt_m6 = Bolt('SI', nitronic, 6e-3, 1e-3, 0.90)
+    washer_inox = Washer(inox)
+    nut_inox = Nut(inox)
+    cbush_force = Load([1000,250,250])
+    part_a = Part(AA7075,5e-3)
+    part_b = Part(AA7075,10e-3)
+    j1 = Joint('nut', bolt_m6, washer_inox, nut_inox,part_a, part_b, cbush_force)  

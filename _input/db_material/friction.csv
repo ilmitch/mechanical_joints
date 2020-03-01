@@ -7,3 +7,4 @@ Ti-6Al-4V,Ti-6Al-4V,0.200,0.300,mat_db
 Ti-6Al-4V,AA7075,0.190,0.250,mat_db
 nitronic,inox,0.250,0.650,customerA_input
 nitronic,AA7075,0.200,0.500,customerB_input
+AA7075,AA7075,0.180,0.200,customerB_input
