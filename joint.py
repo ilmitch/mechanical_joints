@@ -39,15 +39,19 @@ frict_df = pd.read_csv(frict_coeff_path, skiprows=4).set_index(['material_A', 'm
 
 class Analysis():
     '''
-    Analysis Params
+    Analysis Params as Class Variables
     '''
-    def __init__(self, km=1.20, kq=1.25, kp=1.0, sf_yld=1.10, sf_ult=1.25, sf_lcd=1.20):
-        self.km = km            # mathematical model load factor
-        self.kq = kq            # test qualificaiton load factor
-        self.kp = kp            # project or additional load factor
-        self.sf_yld = sf_yld    # yield safety factor
-        self.sf_ult = sf_ult    # ultimate safety factor
-        self.sf_lcd = sf_lcd    # local design safety factor
+    km = 1.20            # mathematical model load factor
+    kq = 1.25            # test qualificaiton load factor
+    kp = 1.00            # project or additional load factor
+    kld = 1.20           # local design safety factor, typical for fasteners
+    sf_yld = 1.10        # yield safety factor
+    sf_ult = 1.25        # ultimate safety factor
+    compliance = {'min' : 0.20, 'max' : 0.40}    # clamped parts compliance factor
+
+    level_limit = km * kq * kp * kld    #factor from limit level to design level
+    level_qual = kp * kld               #factor from qualidication level to design level
+    level_design = 1.0                  #factor from design level to design level, 1.0
 
 class Material():
     '''
@@ -104,9 +108,25 @@ class Load():
     #     self.coord_in = coord_in
     #     self.coord_out = coord_out
     #     self.pull_direction = pull_direction
+
     def __init__(self, load_in, pull_direction = 'Z'):
-        self.load_in = load_in
-        self.pull_direction = pull_direction
+        self.load_in = load_in  # input load, list
+        self.pull_direction = pull_direction    # bolt pull direction, string, 'X' or 'Y' or 'Z'
+        
+        # expressing input load as bolt pull / shear 
+        if self.pull_direction == 'X':
+            self.pull = load_in[0]
+            self.shear = (load_in[1]**2 + load_in[2]**2)**0.5 
+        elif self.pull_direction == 'Y':
+            self.pull = load_in[1]
+            self.shear = (load_in[0]**2 + load_in[2]**2)**0.5 
+        elif self.pull_direction == 'Z':
+            self.pull = load_in[2]
+            self.shear = (load_in[0]**2 + load_in[1]**2)**0.5 
+        else:
+            print('provided pull_direction is wrong!')
+            raise Exception
+        
 
 
 class Part(Material):
@@ -115,7 +135,7 @@ class Part(Material):
         self.thickness = thickness
 
 
-class Bolt():
+class Bolt(Analysis):
     '''
     Bolts attributes, derived params and computation of Safety Margins
     '''
@@ -168,19 +188,28 @@ class Joint(Analysis):
     computes MoS at joint level
     '''
     def __init__(self, type, bolt, washer, nut, clamp_part_male, clamp_part_female, load):
-        self.type = type                            # bolt with nut or tapped joint
-        self.bolt = bolt                            # bolt object
+        self.type = type                            # bolt with nut or tapped joint, string: 'nut' or 'tap'
+        self.bolt = bolt                            # Bolt object
+        self.washer = washer                        # Bolt Washer Object
+        self.nut = nut                              # Bolt Nut Object
         self.clamp_part_male = clamp_part_male      # clamped part with through hole, directly underneath bolt head / bolt washer
         self.clamp_part_female = clamp_part_female  # clamped part with threaded hole or at the bolt nut side
+        self.load = load                            # Load object
+
+        # retrieving part pairs friction values
         self.parts_frict = Friction(clamp_part_male.material, clamp_part_female.material).nus()
 
 
-        def calc_mos_slippage(self):
-            '''
-            computes slippage MoS
-            '''
-            pass
+    def calc_mos_slippage_ult(self):
+        '''
+        computes ultimate slippage MoS
+        '''
+        mos_slip = ((self.bolt.pt_min - (1-self.compliance['min']) * self.load.pull) * self.parts_frict['nu_min']) / (self.load.shear * self.sf_ult)
+        return mos_slip
 
+    def __repr__(self):
+        #returns joint data and mos summary
+        return f"joint type: {self.type}\n bolt type: {self.bolt.name}\n bolt washer material: {self.washer.material.name}\n"
 
 
 # example, combining OOP with Pandas DataFrames (proof of concept)
