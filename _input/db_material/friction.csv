@@ -1,0 +1,9 @@
+# WARNING: all values are fictitious and meant to test the software only
+# Friction coefficients between material_A and material_B
+# material_A/B must correspond to Material().name
+#
+material_A,material_B,nu_min,nu_max,reference
+Ti-6Al-4V,Ti-6Al-4V,0.200,0.300,mat_db
+Ti-6Al-4V,AA7075,0.190,0.250,mat_db
+nitronic,inox,0.250,0.650,customerA_input
+nitronic,AA7075,0.200,0.500,customerB_input
