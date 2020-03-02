@@ -1,8 +1,9 @@
 '''
 Classes for mechanical joints
 
-TODO (feel free to help out!)
-
+------------------------------
+ TO DO (feel free to help out!)
+------------------------------
 [] material, given an input csv file istantiate all material automatically (is it possible??)
 [] coord
     [] adopt a Nastran Card definition approach
@@ -227,6 +228,17 @@ class Joint(Analysis):
         # retrieving part pairs friction values though Friction Class
         self.parts_frict = Friction(clamp_part_male.material, clamp_part_female.material).nus()
 
+    def calc_mos_fastener_yld(self):
+        pass
+
+    def calc_mos_fastener_ult(self):
+        pass
+
+    def calc_mos_shear(self):
+        pass
+    
+    def calc_mos_shear_tension(self):
+        pass
 
     def calc_mos_slippage_ult(self):
         '''
@@ -234,6 +246,18 @@ class Joint(Analysis):
         '''
         mos_slip = ((self.bolt.pt_min - (1-self.compliance['min']) * self.load.pull) * self.parts_frict['nu_min']) / (self.load.shear * self.sf_ult)
         return mos_slip
+
+    def calc_mos_gapping(self):
+        pass
+
+    def calc_mos_stripping(self):
+        pass
+
+    def calc_mos_bearing(self):
+        pass
+
+    def calc_mos_shear_out(self):
+        pass
 
     def __repr__(self):
         #returns joint data and mos summary
