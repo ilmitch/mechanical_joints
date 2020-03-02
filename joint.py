@@ -244,7 +244,11 @@ class Joint(Analysis):
         '''
         computes ultimate slippage MoS, see Handbook, page §9.2.3 Friction Grip Strength Analysis, page 137
         '''
-        mos_slip = ((self.bolt.pt_min - (1-self.compliance['min']) * self.load.pull) * self.parts_frict['nu_min']) / (self.load.shear * self.sf_ult)
+        
+        allowable = (self.bolt.pt_min - (1-self.compliance['min']) * self.load.pull) * self.parts_frict['nu_min']
+        design_load = self.load.shear * self.sf_ult
+        mos_slip = allowable / design_load -1
+
         return mos_slip
 
     def calc_mos_gapping(self):
